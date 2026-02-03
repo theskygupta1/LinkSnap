@@ -2,10 +2,18 @@
 #include<iostream>
 #include<unordered_map>
 #include<string>
+#include<ctime>
+#include<windows.h>
 
 using namespace std;
 
 const string BASE62 = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+struct URLRecord{
+    string longURL;
+    time_t createdAt;
+    time_t expiryTime;
+};
 
 string encodeBase62(long long num) {
     if (num == 0) return string(1, BASE62[0]);
@@ -19,34 +27,45 @@ string encodeBase62(long long num) {
     return result;
 }
 
+const int DEFAULT_EXPIRY_SECONDS = 60 * 60 * 24 ; 
 
 class URLShortener{
     private:
-        unordered_map<string, string> shortToLong;
+        unordered_map<string, URLRecord> urlStore;
         int counter;
     public:
         URLShortener(){
             counter = 1;
         }
-        string shortenURL(const string& longURL){
+        string shortenURL(const string& longURL,int expirySeconds=DEFAULT_EXPIRY_SECONDS){
             long long id = counter++;
             string shortCode = encodeBase62(id);
-            shortToLong[shortCode] = longURL;
+            time_t now = time(nullptr);
+            URLRecord record;
+            record.longURL = longURL;
+            record.createdAt = now;
+            record.expiryTime = now+expirySeconds;
+            urlStore[shortCode] = record;
             return shortCode;
         }
         string redirectURL(const string& shortCode){
-            if(shortToLong.find(shortCode)==shortToLong.end())
+            if(urlStore.find(shortCode)==urlStore.end())
                 return "404 Not Found!";
-            return shortToLong[shortCode];
+            time_t now = time(nullptr);
+            if(now>urlStore[shortCode].expiryTime)
+                return "404 Link Expired!";
+            
+            return urlStore[shortCode].longURL;
         }
 };
 
 int main(){
     URLShortener service;
-    string s1 = service.shortenURL("https://www.google.com");
-    string s2 = service.shortenURL("https://www.github.com");
-    string s3 = service.shortenURL("https://www.openai.com");
-    cout << s1 << "->" << service.redirectURL(s1) << endl;
-    cout << s2 << "->" << service.redirectURL(s2) << endl;
-    cout << s3 << "->" << service.redirectURL(s3) << endl;
+    string s1 = service.shortenURL("https://www.google.com",5);
+    cout << "Short URL: " << s1 << endl;
+    cout << "Redirect: " << service.redirectURL(s1)<< endl;
+    cout<<"Waiting for expiry..."<<endl;
+    Sleep(6000);
+    cout<< "Redirect after expiry: " << service.redirectURL(s1)<< endl;
+    return 0;
 }
